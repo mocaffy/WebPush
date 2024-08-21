@@ -1,33 +1,56 @@
-import { serveAPI } from "https://js.sabae.cc/wsutil.js";
+import { serveDir } from "https://deno.land/std@0.223.0/http/file_server.ts";
 import WebPush from "./WebPush.js";
 import { UUID } from "https://code4sabae.github.io/js/UUID.js";
 
-await Deno.mkdir("data/subscription", { recursive: true });
+Deno.serve(async (request) => {
+  const pathname = new URL(request.url).pathname;
 
-serveAPI("/api/", async (param, req, path, conninfo) => {
-  if (path == "/api/subscribe") {
+  if (request.method === "POST" && pathname === "/api/subscribe") {
+    const param = await request.json()
     const subscription = param;
     const uuid = UUID.generate();
-    await Deno.writeTextFile("data/subscription/" + uuid + ".json", JSON.stringify(subscription));
+    await Deno.writeTextFile(
+      "data/subscription/" + uuid + ".json",
+      JSON.stringify(subscription),
+    );
     console.log("subscribe", uuid);
-    return { uuid };
+    return new Response(
+      JSON.stringify({
+        uuid,
+      }),
+    );
   }
-  if (path == "/api/unsubscribe") {
+  if (request.method === "POST" && pathname === "/api/unsubscribe") {
+    const param = await request.json()
     const uuid = param.uuid;
     await Deno.remove("data/subscription/" + uuid + ".json");
     console.log("unsubscribe", uuid);
-    return { uuid };
+    return new Response(
+      JSON.stringify({
+        uuid,
+      }),
+    );
   }
-  if (path == "/api/push") {
+  if (request.method === "POST" && pathname === "/api/push") {
     try {
+      const param = await request.json()
       const uuid = param.uuid;
       const data = param.data;
       console.log("push", uuid, data);
       const res = await WebPush.push(uuid, data);
-      return { res };
+      return new Response(
+        JSON.stringify({
+          res,
+        }),
+      );
     } catch (e) {
       console.log(e);
     }
   }
-  return { res: "err" };
+
+  return serveDir(request, {
+    fsRoot: "./static/",
+    urlRoot: "",
+    enableCors: true,
+  });
 });
